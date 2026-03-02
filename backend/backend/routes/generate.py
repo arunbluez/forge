@@ -1,8 +1,12 @@
 """Image generation endpoints including WebSocket streaming."""
 
+import logging
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from backend.config import API_PREFIX
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix=API_PREFIX, tags=["generate"])
 
@@ -20,7 +24,7 @@ async def ws_generate(websocket: WebSocket) -> None:
                 "message": "Generation endpoint not yet implemented.",
             })
     except WebSocketDisconnect:
-        pass
+        logger.info("WebSocket client disconnected")
 
 
 @router.post("/generate/cancel")

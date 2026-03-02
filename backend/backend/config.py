@@ -1,7 +1,7 @@
 """Forge backend configuration."""
 
+import os
 import platform
-import sys
 from pathlib import Path
 
 APP_NAME = "Forge"
@@ -21,10 +21,8 @@ def _get_data_dir() -> Path:
         data_dir = app_data / APP_NAME
     else:
         # Linux / other Unix - use XDG_DATA_HOME or fallback
-        xdg_data = Path.home() / ".local" / "share"
+        xdg_data = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
         data_dir = xdg_data / APP_NAME.lower()
-        if not xdg_data.exists():
-            data_dir = Path.home() / ".forge"
     return data_dir
 
 

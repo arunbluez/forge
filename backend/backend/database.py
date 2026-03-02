@@ -28,33 +28,25 @@ CREATE TABLE IF NOT EXISTS gallery (
 
 _CREATE_FTS_TABLE = """
 CREATE VIRTUAL TABLE IF NOT EXISTS gallery_fts USING fts5(
-    prompt,
-    content=gallery,
-    content_rowid=rowid
+    id UNINDEXED,
+    prompt
 );
 """
 
 _CREATE_FTS_TRIGGERS = """
 CREATE TRIGGER IF NOT EXISTS gallery_ai AFTER INSERT ON gallery BEGIN
-    INSERT INTO gallery_fts(rowid, prompt) VALUES (new.rowid, new.prompt);
+    INSERT INTO gallery_fts(id, prompt) VALUES (new.id, new.prompt);
 END;
 
 CREATE TRIGGER IF NOT EXISTS gallery_ad AFTER DELETE ON gallery BEGIN
-    INSERT INTO gallery_fts(gallery_fts, rowid, prompt) VALUES ('delete', old.rowid, old.prompt);
+    DELETE FROM gallery_fts WHERE id = old.id;
 END;
 
 CREATE TRIGGER IF NOT EXISTS gallery_au AFTER UPDATE ON gallery BEGIN
-    INSERT INTO gallery_fts(gallery_fts, rowid, prompt) VALUES ('delete', old.rowid, old.prompt);
-    INSERT INTO gallery_fts(rowid, prompt) VALUES (new.rowid, new.prompt);
+    DELETE FROM gallery_fts WHERE id = old.id;
+    INSERT INTO gallery_fts(id, prompt) VALUES (new.id, new.prompt);
 END;
 """
-
-
-async def _get_connection() -> aiosqlite.Connection:
-    """Open a connection to the database."""
-    db = await aiosqlite.connect(str(DB_PATH))
-    db.row_factory = aiosqlite.Row
-    return db
 
 
 async def init_db() -> None:
@@ -135,7 +127,7 @@ async def search_entries(query: str, limit: int = 50, offset: int = 0) -> list[d
         cursor = await db.execute(
             """
             SELECT gallery.* FROM gallery
-            JOIN gallery_fts ON gallery.rowid = gallery_fts.rowid
+            JOIN gallery_fts ON gallery.id = gallery_fts.id
             WHERE gallery_fts MATCH ?
             ORDER BY gallery.created_at DESC
             LIMIT ? OFFSET ?

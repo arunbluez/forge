@@ -2,6 +2,7 @@
 
 import platform
 import shutil
+import subprocess
 from typing import Optional
 
 from fastapi import APIRouter
@@ -19,7 +20,14 @@ def _get_total_ram_gb() -> float:
     except ImportError:
         pass
 
-    # Fallback: read from /proc/meminfo on Linux
+    # Fallback for macOS: use sysctl to read total physical memory
+    try:
+        output = subprocess.check_output(["sysctl", "-n", "hw.memsize"], text=True)
+        return int(output.strip()) / (1024 ** 3)
+    except (FileNotFoundError, subprocess.CalledProcessError, ValueError):
+        pass
+
+    # Fallback for Linux: read from /proc/meminfo
     try:
         with open("/proc/meminfo") as f:
             for line in f:

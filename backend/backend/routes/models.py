@@ -7,6 +7,7 @@ from backend.models.manager import ModelManager
 
 router = APIRouter(prefix=API_PREFIX, tags=["models"])
 
+# Module-level singleton: intentional for single-worker operation (uvicorn --workers 1).
 model_manager = ModelManager()
 
 

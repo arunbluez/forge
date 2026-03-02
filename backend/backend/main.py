@@ -6,6 +6,7 @@ import os
 os.environ["PYTORCH_MPS_FAST_MATH"] = "1"
 
 import logging
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
@@ -17,16 +18,28 @@ from backend.routes import health, system, models, gallery, generate
 
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application startup and shutdown."""
+    logger.info("Starting Forge Backend...")
+    await init_db()
+    logger.info("Database initialized.")
+    yield
+    logger.info("Shutting down Forge Backend...")
+
+
 app = FastAPI(
     title="Forge Backend",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # CORS middleware - allow all origins for local development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -37,20 +50,6 @@ app.include_router(system.router)
 app.include_router(models.router)
 app.include_router(gallery.router)
 app.include_router(generate.router)
-
-
-@app.on_event("startup")
-async def startup_event() -> None:
-    """Initialize services on application startup."""
-    logger.info("Starting Forge Backend...")
-    await init_db()
-    logger.info("Database initialized.")
-
-
-@app.on_event("shutdown")
-async def shutdown_event() -> None:
-    """Clean up resources on application shutdown."""
-    logger.info("Shutting down Forge Backend...")
 
 
 if __name__ == "__main__":
