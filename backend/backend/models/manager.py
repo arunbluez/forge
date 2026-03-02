@@ -1,5 +1,6 @@
 """Model manager for downloading, loading, and unloading AI models."""
 
+import asyncio
 import gc
 import json
 import logging
@@ -483,6 +484,9 @@ class ModelManager:
         Progress (0-100) is tracked in ``self._download_state[model_id]``
         and optionally reported via *progress_callback*.
 
+        The actual download runs in a thread so it does not block the
+        asyncio event loop (allowing progress-polling requests to be served).
+
         Raises ``ValueError`` for unknown models and ``RuntimeError`` on
         download failure.
         """
@@ -491,6 +495,8 @@ class ModelManager:
             raise ValueError(f"Unknown model: {model_id}")
 
         repo_id: str = entry["repo_id"]
+        tokenizer_repo: Optional[str] = entry.get("tokenizer_repo")
+        has_tokenizer = tokenizer_repo and tokenizer_repo != repo_id
 
         # Initialise download state
         self._download_state[model_id] = {
@@ -499,42 +505,67 @@ class ModelManager:
             "cancel_requested": False,
         }
 
-        try:
+        state = self._download_state[model_id]
+
+        def _do_download() -> None:
             from huggingface_hub import snapshot_download
+            from tqdm import tqdm as tqdm_base
+
+            # Build a custom tqdm subclass that feeds aggregate progress
+            # back into ``state["progress"]``.
+            lock = threading.Lock()
+            agg = {"total": 0, "completed": 0}
+
+            # If there's a tokenizer repo, reserve 5 % of the bar for it
+            model_weight = 0.95 if has_tokenizer else 1.0
+
+            class _ProgressTqdm(tqdm_base):
+                def __init__(self, *args: Any, **kwargs: Any) -> None:
+                    kwargs["disable"] = True  # suppress terminal output
+                    super().__init__(*args, **kwargs)
+                    if self.total and self.total > 0:
+                        with lock:
+                            agg["total"] += self.total
+
+                def update(self, n: int = 1) -> Any:
+                    result = super().update(n)
+                    with lock:
+                        agg["completed"] += n
+                        if agg["total"] > 0:
+                            raw = (agg["completed"] / agg["total"]) * 100
+                            state["progress"] = min(
+                                round(raw * model_weight, 1), 99.9
+                            )
+                    return result
 
             logger.info("Starting download: %s (%s)", model_id, repo_id)
 
-            # snapshot_download is blocking; we just run it directly
-            # (the route layer can wrap this in asyncio.to_thread).
-            snapshot_download(
-                repo_id,
-                # Let HF hub use its default cache
-            )
+            snapshot_download(repo_id, tqdm_class=_ProgressTqdm)
 
-            # Check for cancellation after download completes
-            if self._download_state.get(model_id, {}).get("cancel_requested"):
+            if state.get("cancel_requested"):
                 logger.info("Download of %s was cancelled.", model_id)
-                self._download_state[model_id]["is_downloading"] = False
-                self._download_state[model_id]["progress"] = 0.0
+                state["is_downloading"] = False
+                state["progress"] = 0.0
                 return
 
-            self._download_state[model_id]["progress"] = 100.0
             logger.info("Download complete: %s", model_id)
 
-            # Also download the tokenizer repo if one is configured and different
-            tokenizer_repo = entry.get("tokenizer_repo")
-            if tokenizer_repo and tokenizer_repo != repo_id:
+            # Also download the tokenizer repo if configured and different
+            if has_tokenizer:
                 logger.info("Downloading tokenizer repo: %s", tokenizer_repo)
                 snapshot_download(tokenizer_repo)
                 logger.info("Tokenizer repo download complete: %s", tokenizer_repo)
 
+            state["progress"] = 100.0
+
+        try:
+            await asyncio.to_thread(_do_download)
         except Exception as exc:
             logger.exception("Download failed for %s", model_id)
-            self._download_state[model_id]["progress"] = 0.0
+            state["progress"] = 0.0
             raise RuntimeError(f"Download failed for {model_id}: {exc}") from exc
-
         finally:
-            self._download_state[model_id]["is_downloading"] = False
+            state["is_downloading"] = False
 
     def cancel_download(self, model_id: str) -> None:
         """Request cancellation of an in-progress download."""

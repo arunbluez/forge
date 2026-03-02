@@ -15,7 +15,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.config import DEFAULT_HOST, DEFAULT_PORT
 from backend.database import init_db
 from backend.models.manager import ModelManager
-from backend.routes import health, system, models, gallery, generate
+from backend.routes import health, system, models, gallery, generate, settings
+from backend.settings import apply_saved_settings
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Manage application startup and shutdown."""
     logger.info("Starting Forge Backend...")
+    apply_saved_settings()
     await init_db()
     logger.info("Database initialized.")
 
@@ -60,6 +62,7 @@ app.include_router(system.router)
 app.include_router(models.router)
 app.include_router(gallery.router)
 app.include_router(generate.router)
+app.include_router(settings.router)
 
 
 if __name__ == "__main__":

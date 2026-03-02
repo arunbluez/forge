@@ -16,6 +16,7 @@ import {
   X,
   Sparkles,
   Play,
+  ExternalLink,
 } from 'lucide-react';
 import { ForgeApiClient } from '@/lib/api/client';
 import type { ModelInfo, SystemInfo } from '@/lib/api/types';
@@ -102,16 +103,30 @@ function DeleteDialog({
 // ---------------------------------------------------------------------------
 
 function ProgressBar({ progress }: { progress: number }) {
+  const isIndeterminate = progress <= 0;
   return (
-    <div className="flex items-center gap-3">
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-[hsl(var(--muted))]">
-        <div
-          className="h-full rounded-full bg-blue-500 transition-all duration-300"
-          style={{ width: `${Math.min(progress, 100)}%` }}
-        />
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-3">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-[hsl(var(--muted))]">
+          {isIndeterminate ? (
+            <div className="h-full w-1/3 animate-pulse rounded-full bg-blue-500/60" />
+          ) : (
+            <div
+              className="h-full rounded-full bg-blue-500 transition-all duration-500"
+              style={{ width: `${Math.min(progress, 100)}%` }}
+            />
+          )}
+        </div>
+        <span className="w-12 text-right text-xs font-medium tabular-nums text-[hsl(var(--muted-foreground))]">
+          {isIndeterminate ? '...' : `${progress.toFixed(1)}%`}
+        </span>
       </div>
-      <span className="w-12 text-right text-xs font-medium tabular-nums text-[hsl(var(--muted-foreground))]">
-        {progress.toFixed(1)}%
+      <span className="text-xs text-[hsl(var(--muted-foreground))]">
+        {isIndeterminate
+          ? 'Preparing download...'
+          : progress >= 99.9
+            ? 'Finalizing...'
+            : 'Downloading model files...'}
       </span>
     </div>
   );
@@ -326,6 +341,17 @@ function ModelCard({
               Download in progress...
             </span>
           )}
+
+          {/* HuggingFace model page link */}
+          <a
+            href={`https://huggingface.co/${model.repo_id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto inline-flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--foreground))]"
+          >
+            View on HF
+            <ExternalLink className="h-3 w-3" />
+          </a>
         </div>
       </div>
 

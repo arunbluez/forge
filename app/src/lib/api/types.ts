@@ -53,6 +53,11 @@ export interface GalleryEntry {
   generation_time_ms: number;
 }
 
+export interface AppSettings {
+  hf_token_set: boolean;
+  hf_token_preview: string;
+}
+
 export interface GenerateRequest {
   prompt: string;
   negative_prompt: string;

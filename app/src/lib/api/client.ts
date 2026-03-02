@@ -1,4 +1,4 @@
-import type { SystemInfo, ModelInfo, ModelDownloadStatus, GalleryEntry } from './types';
+import type { SystemInfo, ModelInfo, ModelDownloadStatus, GalleryEntry, AppSettings } from './types';
 
 export class ForgeApiClient {
   private baseUrl: string;
@@ -105,6 +105,18 @@ export class ForgeApiClient {
       return imagePath;
     }
     return `${this.baseUrl}/api/v1/gallery/image/${encodeURIComponent(imagePath)}`;
+  }
+
+  // Settings
+  async getSettings(): Promise<AppSettings> {
+    return this.request('/settings');
+  }
+
+  async updateSettings(settings: { hf_token?: string }): Promise<AppSettings> {
+    return this.request('/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
   }
 
   // Generation (WebSocket)

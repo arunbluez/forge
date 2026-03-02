@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Wand2, Images, Box } from 'lucide-react';
+import { Wand2, Images, Box, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useServerStore } from '@/stores/serverStore';
 
@@ -7,6 +7,7 @@ const navItems = [
   { to: '/', label: 'Studio', icon: Wand2 },
   { to: '/gallery', label: 'Gallery', icon: Images },
   { to: '/models', label: 'Models', icon: Box },
+  { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function Sidebar() {

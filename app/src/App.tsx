@@ -5,6 +5,7 @@ import Layout from '@/components/layout/Layout';
 import Studio from '@/pages/Studio';
 import Gallery from '@/pages/Gallery';
 import ModelManager from '@/pages/ModelManager';
+import Settings from '@/pages/Settings';
 import ErrorBoundary from '@/components/app/ErrorBoundary';
 import StartupScreen from '@/components/app/StartupScreen';
 import ErrorScreen from '@/components/app/ErrorScreen';
@@ -84,6 +85,7 @@ function ConnectedApp() {
           <Route path="/" element={<Studio />} />
           <Route path="/gallery" element={<Gallery />} />
           <Route path="/models" element={<ModelManager />} />
+          <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>
 
