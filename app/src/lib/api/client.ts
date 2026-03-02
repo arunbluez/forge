@@ -1,4 +1,4 @@
-import type { SystemInfo, ModelInfo, GalleryEntry } from './types';
+import type { SystemInfo, ModelInfo, ModelDownloadStatus, GalleryEntry } from './types';
 
 export class ForgeApiClient {
   private baseUrl: string;
@@ -37,7 +37,7 @@ export class ForgeApiClient {
 
   // System
   async getSystemInfo(): Promise<SystemInfo> {
-    return this.request('/system/info');
+    return this.request('/system');
   }
 
   // Models
@@ -63,6 +63,16 @@ export class ForgeApiClient {
     });
   }
 
+  async getModelDownloadStatus(modelId: string): Promise<ModelDownloadStatus> {
+    return this.request(`/models/${encodeURIComponent(modelId)}/download-status`);
+  }
+
+  async unloadModel(modelId: string): Promise<void> {
+    await this.request(`/models/${encodeURIComponent(modelId)}/unload`, {
+      method: 'POST',
+    });
+  }
+
   // Gallery
   async getGallery(page?: number, limit?: number): Promise<GalleryEntry[]> {
     const params = new URLSearchParams();
@@ -84,10 +94,19 @@ export class ForgeApiClient {
     });
   }
 
+  // Gallery image URL
+  getGalleryImageUrl(imagePath: string): string {
+    // If the path is already absolute URL, return as-is
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    return `${this.baseUrl}/api/v1/gallery/image/${encodeURIComponent(imagePath)}`;
+  }
+
   // Generation (WebSocket)
   createGenerationSocket(): WebSocket {
     const wsUrl = this.baseUrl.replace(/^http/, 'ws');
-    return new WebSocket(`${wsUrl}/api/v1/generate/ws`);
+    return new WebSocket(`${wsUrl}/api/v1/ws/generate`);
   }
 
   async cancelGeneration(): Promise<void> {

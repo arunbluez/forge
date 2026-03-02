@@ -1,73 +1,155 @@
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Sparkles, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useGenerationStore } from '@/stores/generationStore';
+import { useServerStore } from '@/stores/serverStore';
+import { ForgeApiClient } from '@/lib/api/client';
+import { useGeneration } from '@/hooks/useGeneration';
+import type { ModelInfo, GenerateRequest } from '@/lib/api/types';
+
+import PromptInput from '@/components/studio/PromptInput';
+import GenerationSettings from '@/components/studio/GenerationSettings';
+import ImageUpload from '@/components/studio/ImageUpload';
+import PreviewCanvas from '@/components/studio/PreviewCanvas';
+import RecentStrip from '@/components/studio/RecentStrip';
 
 export default function Studio() {
-  const {
-    prompt,
-    setPrompt,
-    negativePrompt,
-    setNegativePrompt,
-    isGenerating,
-    previewImage,
-    finalImage,
-  } = useGenerationStore();
+  const serverUrl = useServerStore((s) => s.serverUrl);
 
-  const displayImage = finalImage ?? previewImage;
+  const prompt = useGenerationStore((s) => s.prompt);
+  const negativePrompt = useGenerationStore((s) => s.negativePrompt);
+  const selectedModelId = useGenerationStore((s) => s.selectedModelId);
+  const width = useGenerationStore((s) => s.width);
+  const height = useGenerationStore((s) => s.height);
+  const steps = useGenerationStore((s) => s.steps);
+  const seed = useGenerationStore((s) => s.seed);
+  const guidanceScale = useGenerationStore((s) => s.guidanceScale);
+  const sourceImages = useGenerationStore((s) => s.sourceImages);
+  const isGenerating = useGenerationStore((s) => s.isGenerating);
+
+  const { startGeneration, cancelGeneration, statusMessage } = useGeneration();
+
+  // Fetch models to check if selected model supports img2img
+  const { data: models = [] } = useQuery<ModelInfo[]>({
+    queryKey: ['models'],
+    queryFn: async () => {
+      const client = new ForgeApiClient(serverUrl);
+      return client.getModels();
+    },
+    refetchInterval: 30_000,
+  });
+
+  const selectedModel = useMemo(
+    () => models.find((m) => m.id === selectedModelId && m.is_downloaded) ?? null,
+    [models, selectedModelId]
+  );
+
+  const showImageUpload = selectedModel?.supports_img2img ?? false;
+
+  const canGenerate =
+    !isGenerating &&
+    prompt.trim().length > 0 &&
+    selectedModelId !== null;
+
+  const handleGenerate = () => {
+    if (!canGenerate || !selectedModelId) return;
+
+    const request: GenerateRequest = {
+      prompt: prompt.trim(),
+      negative_prompt: negativePrompt.trim(),
+      model_id: selectedModelId,
+      width,
+      height,
+      steps,
+      seed,
+      guidance_scale: guidanceScale,
+      source_images: sourceImages,
+    };
+
+    startGeneration(request);
+  };
+
+  const handleCancel = () => {
+    cancelGeneration();
+  };
+
+  // Handle Ctrl+Enter to generate
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && canGenerate) {
+      e.preventDefault();
+      handleGenerate();
+    }
+  };
 
   return (
-    <div className="flex h-full gap-6">
-      {/* Controls */}
-      <div className="flex w-80 shrink-0 flex-col gap-4">
+    <div className="flex h-full gap-6" onKeyDown={handleKeyDown}>
+      {/* Left Panel - Controls */}
+      <div className="flex w-80 shrink-0 flex-col gap-5 overflow-y-auto pr-1 pb-2">
         <h2 className="text-lg font-semibold">Generate</h2>
 
-        <div className="flex flex-col gap-2">
-          <label htmlFor="prompt" className="text-sm font-medium">
-            Prompt
-          </label>
-          <textarea
-            id="prompt"
-            rows={4}
-            placeholder="Describe the image you want to create..."
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            className="resize-none rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-          />
-        </div>
+        {/* Prompt Section */}
+        <PromptInput />
 
-        <div className="flex flex-col gap-2">
-          <label htmlFor="negative-prompt" className="text-sm font-medium">
-            Negative Prompt
-          </label>
-          <textarea
-            id="negative-prompt"
-            rows={2}
-            placeholder="What to avoid..."
-            value={negativePrompt}
-            onChange={(e) => setNegativePrompt(e.target.value)}
-            className="resize-none rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-          />
-        </div>
+        {/* Model & Generation Settings */}
+        <GenerationSettings />
 
-        <button
-          disabled={isGenerating || !prompt.trim()}
-          className="rounded-md bg-[hsl(var(--primary))] px-4 py-2 text-sm font-medium text-[hsl(var(--primary-foreground))] transition-colors hover:bg-[hsl(var(--primary))]/90 disabled:pointer-events-none disabled:opacity-50"
-        >
-          {isGenerating ? 'Generating...' : 'Generate'}
-        </button>
+        {/* Image-to-Image Section (conditional) */}
+        {showImageUpload && (
+          <>
+            <div className="h-px bg-[hsl(var(--border))]" />
+            <ImageUpload />
+          </>
+        )}
+
+        {/* Spacer to push button to bottom on short content */}
+        <div className="flex-1" />
+
+        {/* Generate / Cancel Button */}
+        <div className="sticky bottom-0 bg-[hsl(var(--background))] pt-2 pb-1">
+          {isGenerating ? (
+            <button
+              type="button"
+              onClick={handleCancel}
+              className={cn(
+                'flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5',
+                'bg-[hsl(var(--destructive))] text-white',
+                'text-sm font-medium transition-colors',
+                'hover:bg-[hsl(var(--destructive))]/90'
+              )}
+            >
+              <X className="h-4 w-4" />
+              Cancel
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={!canGenerate}
+              onClick={handleGenerate}
+              className={cn(
+                'flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5',
+                'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]',
+                'text-sm font-medium transition-colors',
+                'hover:bg-[hsl(var(--primary))]/90',
+                'disabled:pointer-events-none disabled:opacity-50'
+              )}
+            >
+              <Sparkles className="h-4 w-4" />
+              Generate
+            </button>
+          )}
+          {!isGenerating && (
+            <p className="mt-1.5 text-center text-[10px] text-[hsl(var(--muted-foreground))]">
+              {canGenerate ? 'Ctrl+Enter to generate' : selectedModelId ? 'Enter a prompt to begin' : 'Select a model to begin'}
+            </p>
+          )}
+        </div>
       </div>
 
-      {/* Preview */}
-      <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/50">
-        {displayImage ? (
-          <img
-            src={displayImage}
-            alt="Generated"
-            className="max-h-full max-w-full rounded-md object-contain"
-          />
-        ) : (
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            Generated image will appear here
-          </p>
-        )}
+      {/* Right Panel - Preview */}
+      <div className="flex flex-1 flex-col gap-4 min-h-0 min-w-0">
+        <PreviewCanvas statusMessage={statusMessage} />
+        <RecentStrip />
       </div>
     </div>
   );
