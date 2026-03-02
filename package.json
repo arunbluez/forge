@@ -6,7 +6,9 @@
   "workspaces": ["app", "tauri"],
   "scripts": {
     "dev": "cd tauri && npm run dev",
-    "build": "cd tauri && npm run build",
-    "dev:server": "cd backend && python -m backend.main"
+    "dev:server": "cd backend && python -m backend.main",
+    "build": "npm run build:server && cd tauri && npm run build",
+    "build:server": "bash scripts/build-server.sh",
+    "setup:dev": "bash scripts/setup-dev-sidecar.sh"
   }
 }

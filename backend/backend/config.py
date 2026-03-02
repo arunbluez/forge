@@ -12,7 +12,17 @@ DEFAULT_PORT = 8188
 
 
 def _get_data_dir() -> Path:
-    """Determine the platform-appropriate data directory for Forge."""
+    """Determine the platform-appropriate data directory for Forge.
+
+    Checks the FORGE_DATA_DIR environment variable first (set by the Tauri
+    sidecar launcher to keep the backend aligned with the app's data path).
+    Falls back to platform-specific defaults for standalone usage.
+    """
+    # Allow override via environment variable (used by Tauri sidecar)
+    env_override = os.environ.get("FORGE_DATA_DIR")
+    if env_override:
+        return Path(env_override)
+
     system = platform.system()
     if system == "Darwin":
         data_dir = Path.home() / "Library" / "Application Support" / APP_NAME
