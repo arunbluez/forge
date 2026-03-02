@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import DEFAULT_HOST, DEFAULT_PORT
 from backend.database import init_db
+from backend.models.manager import ModelManager
 from backend.routes import health, system, models, gallery, generate
 
 logger = logging.getLogger(__name__)
@@ -25,8 +26,17 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Forge Backend...")
     await init_db()
     logger.info("Database initialized.")
+
+    # Create the global model manager and attach to app state
+    app.state.model_manager = ModelManager()
+    logger.info("ModelManager initialized.")
+
     yield
+
+    # Cleanup: unload any loaded model before shutdown
     logger.info("Shutting down Forge Backend...")
+    await app.state.model_manager.unload_model()
+    logger.info("ModelManager cleaned up.")
 
 
 app = FastAPI(
