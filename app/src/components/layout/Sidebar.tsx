@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { Wand2, Images, Box } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useServerStore } from '@/stores/serverStore';
 
 const navItems = [
   { to: '/', label: 'Studio', icon: Wand2 },
@@ -9,6 +10,22 @@ const navItems = [
 ];
 
 export default function Sidebar() {
+  const backendStatus = useServerStore((s) => s.backendStatus);
+
+  const statusColor =
+    backendStatus === 'healthy'
+      ? 'bg-green-500'
+      : backendStatus === 'starting'
+        ? 'bg-yellow-500'
+        : 'bg-red-500';
+
+  const statusLabel =
+    backendStatus === 'healthy'
+      ? 'Connected'
+      : backendStatus === 'starting'
+        ? 'Starting'
+        : 'Disconnected';
+
   return (
     <aside className="flex w-56 flex-col border-r border-[hsl(var(--border))] bg-[hsl(var(--card))]">
       <div
@@ -38,6 +55,18 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {/* Backend status indicator */}
+      <div className="border-t border-[hsl(var(--border))] px-3 py-3">
+        <div className="flex items-center gap-2">
+          <span
+            className={cn('h-2 w-2 shrink-0 rounded-full', statusColor)}
+          />
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">
+            Backend: {statusLabel}
+          </span>
+        </div>
+      </div>
     </aside>
   );
 }
