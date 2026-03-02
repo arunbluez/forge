@@ -1,0 +1,12 @@
+{
+  "name": "forge",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Local-first AI image studio for Mac",
+  "workspaces": ["app", "tauri"],
+  "scripts": {
+    "dev": "cd tauri && npm run dev",
+    "build": "cd tauri && npm run build",
+    "dev:server": "cd backend && python -m backend.main"
+  }
+}
