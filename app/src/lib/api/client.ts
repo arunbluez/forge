@@ -79,13 +79,17 @@ export class ForgeApiClient {
     if (page !== undefined) params.set('page', String(page));
     if (limit !== undefined) params.set('limit', String(limit));
     const query = params.toString();
-    return this.request(`/gallery${query ? `?${query}` : ''}`);
+    const data = await this.request<{ entries: GalleryEntry[] }>(
+      `/gallery${query ? `?${query}` : ''}`
+    );
+    return data.entries;
   }
 
   async searchGallery(query: string): Promise<GalleryEntry[]> {
-    return this.request(
+    const data = await this.request<{ entries: GalleryEntry[] }>(
       `/gallery/search?q=${encodeURIComponent(query)}`
     );
+    return data.entries;
   }
 
   async deleteGalleryEntry(id: string): Promise<void> {
