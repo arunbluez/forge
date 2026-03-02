@@ -1,0 +1,14 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+torch>=2.5.0
+diffusers @ git+https://github.com/huggingface/diffusers.git
+sdnq @ git+https://github.com/Disty0/sdnq.git
+optimum-quanto>=0.2.7
+transformers>=4.45.0
+accelerate>=0.34.0
+peft>=0.17.0
+Pillow>=10.0.0
+aiofiles>=24.1.0
+huggingface-hub>=0.27.0
+websockets>=14.0
+aiosqlite>=0.20.0

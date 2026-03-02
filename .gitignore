@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+build/
+dist/
+
+# Node
+node_modules/
+
+# Tauri
+target/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# App artifacts
+*.dmg
+tauri/src-tauri/binaries/forge-server*
+!tauri/src-tauri/binaries/.gitkeep
