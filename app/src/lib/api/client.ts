@@ -104,7 +104,9 @@ export class ForgeApiClient {
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       return imagePath;
     }
-    return `${this.baseUrl}/api/v1/gallery/image/${encodeURIComponent(imagePath)}`;
+    // Extract just the filename from the full filesystem path
+    const filename = imagePath.split('/').pop() ?? imagePath;
+    return `${this.baseUrl}/api/v1/images/${encodeURIComponent(filename)}`;
   }
 
   // Settings
