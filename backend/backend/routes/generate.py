@@ -1,16 +1,11 @@
 """Image generation endpoints including WebSocket streaming."""
 
-import asyncio
 import logging
-import time
-import uuid
-from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from backend.config import API_PREFIX, IMAGES_DIR
-from backend.database import create_entry
-from backend.models.inference import cancel_generation, generate, reset_cancel_flag
+from backend.config import API_PREFIX
+from backend.models.inference import cancel_generation, generate
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +21,11 @@ async def ws_generate(websocket: WebSocket) -> None:
 
     Protocol:
     1. Client sends a JSON message with generation parameters.
-    2. Server sends progress updates: ``{"type": "progress", "step": N, "total_steps": M, "elapsed": S}``
-    3. Server sends the final result:  ``{"type": "complete", "entry": {...}}``
-       or an error:                     ``{"type": "error", "message": "..."}``
+    2. Server streams frames from the ``generate()`` async generator:
+       - ``{"type": "preview", ...}``  – intermediate denoising previews
+       - ``{"type": "complete", ...}`` – final result with image + gallery id
+       - ``{"type": "error", ...}``    – generation failure
+       - ``{"type": "cancelled"}``     – user-initiated cancellation
     """
     await websocket.accept()
     try:
@@ -36,8 +33,8 @@ async def ws_generate(websocket: WebSocket) -> None:
         data = await websocket.receive_json()
 
         prompt: str = data.get("prompt", "")
-        negative_prompt: Optional[str] = data.get("negative_prompt") or None
-        model_id: Optional[str] = data.get("model_id")
+        negative_prompt = data.get("negative_prompt") or None
+        model_id = data.get("model_id")
         width: int = data.get("width", 1024)
         height: int = data.get("height", 1024)
         steps: int = data.get("steps", 20)
@@ -51,7 +48,7 @@ async def ws_generate(websocket: WebSocket) -> None:
             await websocket.close()
             return
 
-        # ----- Resolve model manager and pipeline ---------------------------
+        # ----- Resolve model manager ----------------------------------------
         model_manager = websocket.app.state.model_manager
         loaded_model_id = model_manager.get_loaded_model_id()
 
@@ -69,9 +66,8 @@ async def ws_generate(websocket: WebSocket) -> None:
                 })
                 await websocket.close()
                 return
-            loaded_model_id = model_id
 
-        if loaded_model_id is None:
+        if model_manager.get_loaded_model_id() is None:
             await websocket.send_json({
                 "type": "error",
                 "message": "No model is loaded. Please load a model first.",
@@ -79,83 +75,26 @@ async def ws_generate(websocket: WebSocket) -> None:
             await websocket.close()
             return
 
-        # Resolve actual seed
-        if seed < 0:
-            import random
-            seed = random.randint(0, 2**32 - 1)
-
-        # ----- Progress callback (runs from the inference thread) -----------
-        loop = asyncio.get_event_loop()
-
-        def _progress_callback(step: int, total_steps: int, elapsed: float) -> None:
-            """Send a progress update over the WebSocket (thread-safe)."""
-            msg = {
-                "type": "progress",
-                "step": step,
-                "total_steps": total_steps,
-                "elapsed": round(elapsed, 2),
-            }
-            asyncio.run_coroutine_threadsafe(
-                websocket.send_json(msg), loop,
-            )
-
-        # ----- Run generation -----------------------------------------------
         await websocket.send_json({"type": "status", "message": "Generating..."})
 
-        reset_cancel_flag()
-        start_time = time.time()
+        # Build source_images list from the single source_image field
+        source_images = [source_image] if source_image else None
 
-        pipeline = model_manager._pipeline  # noqa: SLF001 (internal access)
-
-        image = await generate(
-            pipeline=pipeline,
+        # ----- Stream frames from the async generator -----------------------
+        async for frame in generate(
             prompt=prompt,
             negative_prompt=negative_prompt,
+            model_id=model_id,
             width=width,
             height=height,
             steps=steps,
             guidance_scale=guidance_scale,
             seed=seed,
-            source_image=source_image,
+            source_images=source_images,
             strength=strength,
-            progress_callback=_progress_callback,
-        )
-
-        generation_time_ms = int((time.time() - start_time) * 1000)
-
-        if image is None:
-            # Generation was cancelled or produced no output
-            await websocket.send_json({
-                "type": "cancelled",
-                "message": "Generation was cancelled.",
-            })
-            await websocket.close()
-            return
-
-        # ----- Save image to disk -------------------------------------------
-        image_filename = f"{uuid.uuid4().hex}.png"
-        image_path = IMAGES_DIR / image_filename
-        image.save(str(image_path), format="PNG")
-
-        # ----- Save gallery entry -------------------------------------------
-        entry = await create_entry(
-            prompt=prompt,
-            negative_prompt=negative_prompt,
-            model_id=loaded_model_id,
-            seed=seed,
-            width=width,
-            height=height,
-            steps=steps,
-            guidance_scale=guidance_scale,
-            image_path=str(image_path),
-            generation_time_ms=generation_time_ms,
-            source_images=None,
-        )
-
-        # Add image_url for convenience
-        entry["image_url"] = f"/api/v1/images/{image_filename}"
-
-        await websocket.send_json({"type": "complete", "entry": entry})
+            model_manager=model_manager,
+        ):
+            await websocket.send_json(frame)
 
     except WebSocketDisconnect:
         logger.info("Client disconnected during generation")
